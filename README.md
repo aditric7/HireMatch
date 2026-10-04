@@ -1,99 +1,127 @@
-# Resume–Job Description Matcher
+# 🎯 HireMatch
 
-A beginner-friendly Python and Streamlit project that compares resume text with a job description.
+### NLP-Based Resume–Job Description Matching System
 
-## Features
+HireMatch is an NLP-based web application that analyzes a candidate's resume against a target job description and provides an interpretable match analysis.
 
-- Calculates a TF-IDF cosine-similarity score.
-- Detects technical and soft skills from a predefined skill list.
-- Shows matching skills.
-- Shows skills found in the job description but missing from the resume.
-- Runs locally without a paid AI API.
+Instead of only showing a similarity score, HireMatch identifies matching skills, missing skills, evidence from the resume, and generates a personalized preparation roadmap based on the detected skill gaps.
 
-## Technologies
+---
 
-- Python
-- Streamlit
-- Scikit-learn
-- TF-IDF
-- Cosine Similarity
+## 📌 Project Overview
 
-## Project Structure
+Finding out whether a resume matches a particular job description can be difficult for students and job seekers.
+
+HireMatch simplifies this process by comparing resume content with job requirements using Natural Language Processing (NLP) techniques.
+
+The system:
+
+- Extracts text from uploaded PDF resumes
+- Compares the resume with a job description
+- Calculates a TF-IDF based similarity score
+- Detects relevant technical and soft skills
+- Identifies matching and missing skills
+- Provides evidence from the resume for detected skills
+- Generates a personalized preparation roadmap
+
+> **Note:** The similarity percentage is a text-similarity measure and is not a prediction of whether a candidate will be hired.
+
+---
+
+## 🎯 Problem Statement
+
+Students and job seekers often find it difficult to determine whether their resume sufficiently matches a particular job description.
+
+Traditional resume checking methods may require manually comparing skills and requirements.
+
+HireMatch aims to provide a simple and explainable system that automatically compares a resume with a job description and highlights the candidate's skill gaps.
+
+---
+
+## 🚀 Objectives
+
+The main objectives of HireMatch are:
+
+1. To automatically extract text from PDF resumes.
+2. To compare resume content with a target job description.
+3. To calculate a resume-job similarity score using TF-IDF and cosine similarity.
+4. To identify matching skills.
+5. To identify missing skills required by the job description.
+6. To provide evidence from the resume for detected skills.
+7. To generate a job-specific preparation roadmap.
+8. To provide an easy-to-use web interface for students and job seekers.
+
+---
+
+## ✨ Key Features
+
+### 📄 PDF Resume Upload
+
+Users can upload a resume in PDF format. HireMatch automatically extracts the text for analysis.
+
+### 📊 Resume–Job Similarity
+
+The system uses TF-IDF vectorization and cosine similarity to calculate how closely the resume text matches the job description.
+
+### 🟢 Matching Skills
+
+Skills detected in both the resume and job description are displayed as matching skills.
+
+### 🔴 Missing Skills
+
+Skills required by the job description but not detected in the resume are highlighted as skill gaps.
+
+### 🔎 Resume Evidence
+
+HireMatch provides evidence from the resume showing where detected skills appear.
+
+### 📚 Personalized Preparation Roadmap
+
+Based on missing skills, HireMatch generates a structured preparation roadmap with suggested topics and practice recommendations.
+
+### 🎨 Interactive Web Interface
+
+The application provides a clean Streamlit-based interface with separate sections for analysis, methodology, features, and project information.
+
+---
+
+## ⚙️ How HireMatch Works
+
+The overall workflow is:
 
 ```text
-resume-job-matcher/
-├── app.py
-├── matcher.py
-├── requirements.txt
-├── README.md
-└── .gitignore
-```
-
-## How to Run on Windows
-
-### 1. Open the project folder in VS Code
-
-Open the terminal in VS Code.
-
-### 2. Create a virtual environment
-
-```bash
-python -m venv venv
-```
-
-### 3. Activate it
-
-PowerShell:
-
-```powershell
-.\venv\Scripts\Activate.ps1
-```
-
-If PowerShell blocks activation, Command Prompt can be used:
-
-```cmd
-venv\Scripts\activate
-```
-
-### 4. Install dependencies
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-### 5. Run the application
-
-```bash
-python -m streamlit run app.py
-```
-
-The browser should open the Streamlit application.
-
-## How It Works
-
-The application takes two text inputs:
-
-1. Resume text
-2. Job description
-
-Both texts are converted into TF-IDF vectors. Cosine similarity is then used to calculate how similar the two documents are.
-
-The application also checks both texts against a predefined list of skills and displays:
-
-- Skills present in both texts
-- Skills required by the job description but not detected in the resume
-
-## Important Limitation
-
-The match percentage is a text-similarity score. It is not an ATS score, hiring probability, or guarantee of getting an interview.
-
-The skill detector uses a predefined list in `matcher.py`. Add more skills to that list as needed.
-
-## Future Improvements
-
-- Support PDF and DOCX resume uploads.
-- Extract text automatically from uploaded files.
-- Add job-specific skill recommendations.
-- Add charts for skill coverage.
-- Store previous analyses in SQLite.
-- Add an exportable report.
+                    Resume PDF
+                        │
+                        ▼
+               PDF Text Extraction
+                        │
+                        ▼
+                 Text Processing
+                        │
+                        ├──────────────┐
+                        │              │
+                        ▼              ▼
+               Resume Text       Job Description
+                        │              │
+                        └──────┬───────┘
+                               ▼
+                       TF-IDF Vectorization
+                               │
+                               ▼
+                      Cosine Similarity
+                               │
+                               ▼
+                     Match Score
+                               │
+                               ▼
+                       Skill Extraction
+                               │
+                  ┌────────────┴────────────┐
+                  ▼                         ▼
+          Matching Skills             Missing Skills
+                  │                         │
+                  ▼                         ▼
+          Resume Evidence          Skill Gap Analysis
+                                            │
+                                            ▼
+                                  Preparation Roadmap
