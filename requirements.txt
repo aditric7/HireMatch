@@ -1,2 +1,7 @@
 streamlit>=1.40,<2
 scikit-learn>=1.5,<2
+pypdf>=5.0,<7
+python-docx>=1.1,<2
+sentence-transformers>=3.0,<6
+pytesseract>=0.3.13,<1
+pypdfium2>=4.30,<6
