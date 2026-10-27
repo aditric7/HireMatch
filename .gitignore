@@ -18,3 +18,8 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local user database (may contain personal account data)
+hirematch.db
+hirematch.db-shm
+hirematch.db-wal

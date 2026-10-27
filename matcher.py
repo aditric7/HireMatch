@@ -1,4 +1,3 @@
-
 import re
 from functools import lru_cache
 from typing import Dict, List, Optional
@@ -546,47 +545,54 @@ def calculate_semantic_similarity(
         # TF-IDF and skill-gap analysis still work if this fails.
         return None
 
+
 def analyze_match(resume_text: str, job_description: str) -> dict:
     """
-    Compare resume skills with job requirements and generate
-    a personalized learning roadmap for HireMatch.
+    Compare a resume and job description using semantic similarity.
+    Keep skill-gap detection for the personalized learning roadmap.
     """
-    resume_skills = extract_skills(resume_text)
-    job_skills = extract_skills(job_description)
+    resume_text = (resume_text or "").strip()
+    job_description = (job_description or "").strip()
 
-    if not job_skills:
+    if not resume_text or not job_description:
         return {
             "success": False,
-            "message": (
-                "No supported skills were detected in the job description. "
-                "Try including more technical skills."
-            ),
-            "resume_skills": resume_skills,
+            "message": "Please provide both resume text and a job description.",
+            "resume_skills": [],
             "job_skills": [],
             "matched_skills": [],
             "missing_skills": [],
-            "match_percentage": 0,
+            "match_percentage": None,
+            "semantic_similarity": None,
             "roadmap": [],
         }
+
+    resume_skills = extract_skills(resume_text)
+    job_skills = extract_skills(job_description)
+
+    # Calculate the main score using semantic similarity.
+    semantic_score = calculate_semantic_similarity(
+        resume_text,
+        job_description,
+    )
 
     matched_skills = sorted(set(resume_skills) & set(job_skills))
     missing_skills = sorted(set(job_skills) - set(resume_skills))
 
-    match_percentage = round(
-        len(matched_skills) / len(set(job_skills)) * 100
-    )
-
-    roadmap = generate_roadmap(missing_skills)
-
     return {
         "success": True,
-        "message": "Skill analysis completed successfully.",
+        "message": (
+            "Semantic analysis completed successfully."
+            if semantic_score is not None
+            else "Skill analysis completed, but semantic matching is unavailable."
+        ),
         "resume_skills": sorted(set(resume_skills)),
         "job_skills": sorted(set(job_skills)),
         "matched_skills": matched_skills,
         "missing_skills": missing_skills,
-        "match_percentage": match_percentage,
-        "roadmap": roadmap,
+        "match_percentage": semantic_score,
+        "semantic_similarity": semantic_score,
+        "roadmap": generate_roadmap(missing_skills),
     }
 
 

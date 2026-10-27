@@ -3,6 +3,16 @@ from io import BytesIO
 from pypdf import PdfReader
 from docx import Document
 from matcher import analyze_match
+from auth_db import (
+    init_db,
+    create_user,
+    authenticate_user,
+    get_profile,
+    update_profile,
+    save_analysis,
+    get_history,
+)
+from ats_checker import analyze_ats
 
 # --------------------------------------------------
 # Page configuration
@@ -14,6 +24,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# Create the local database tables if they do not exist yet.
+init_db()
+
+if "user" not in st.session_state:
+    st.session_state["user"] = None
 
 
 # --------------------------------------------------
@@ -55,6 +71,34 @@ st.markdown(
     .hero p {
         color: #c5cde0;
         font-size: 1.05rem;
+        line-height: 1.7;
+        max-width: 780px;
+    }
+
+    /* Polished authentication surface */
+    div[data-testid="stTabs"] button[role="tab"] {
+        font-weight: 650;
+        padding: 12px 18px;
+    }
+    div[data-testid="stForm"] {
+        background: linear-gradient(145deg, rgba(24,36,68,.82), rgba(17,24,43,.96));
+        border: 1px solid #344264;
+        border-radius: 18px;
+        padding: 24px 24px 18px 24px;
+    }
+    div[data-testid="stTextInput"] label {
+        color: #e4e9f7;
+        font-weight: 600;
+    }
+    div[data-testid="stTextInput"] input {
+        background: #0d1426;
+        border: 1px solid #394766;
+        border-radius: 10px;
+        min-height: 44px;
+    }
+    div[data-testid="stTextInput"] input:focus {
+        border-color: #8b7cff;
+        box-shadow: 0 0 0 1px #8b7cff;
     }
 
     .section-card {
@@ -88,6 +132,97 @@ st.markdown(
 )
 
 
+# --------------------------------------------------
+# Login and registration gate
+# --------------------------------------------------
+
+if st.session_state.get("user") is None:
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>🎯 Welcome to HireMatch</h1>
+            <p>Your next opportunity starts with a stronger application. Sign in to
+            compare your resume with a role, discover skill gaps, build a learning
+            roadmap, and review your ATS readiness in one workspace.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    auth_left, auth_main, auth_right = st.columns([1, 2.2, 1])
+    with auth_main:
+        st.markdown("### Your career workspace")
+        st.caption("Secure access to your profile, match results, and saved analysis history.")
+        login_tab, register_tab = st.tabs(["Sign in", "Create account"])
+
+        with login_tab:
+            with st.form("login_form"):
+                login_email = st.text_input("Email address", key="login_email")
+                login_password = st.text_input(
+                    "Password", type="password", key="login_password"
+                )
+                login_submitted = st.form_submit_button(
+                    "Sign in", type="primary", use_container_width=True
+                )
+
+            if login_submitted:
+                user = authenticate_user(login_email.strip(), login_password)
+                if user:
+                    st.session_state["user"] = user
+                    st.session_state["current_page"] = "Home"
+                    st.rerun()
+                else:
+                    st.error("Email or password was not recognized.")
+                    st.caption(
+                        "Accounts are stored in the database used by this running instance. "
+                        "If you registered before a redeploy/restart, the deployment may be "
+                        "using a fresh temporary database. Use persistent storage for accounts "
+                        "or create the account again on this instance."
+                    )
+
+        with register_tab:
+            with st.form("register_form"):
+                register_name = st.text_input("Full name", key="register_name")
+                register_email = st.text_input("Email address", key="register_email")
+                register_password = st.text_input(
+                    "Password (at least 8 characters)",
+                    type="password",
+                    key="register_password",
+                )
+                confirm_password = st.text_input(
+                    "Confirm password", type="password", key="confirm_password"
+                )
+                register_submitted = st.form_submit_button(
+                    "Create account", type="primary", use_container_width=True
+                )
+
+            if register_submitted:
+                if register_password != confirm_password:
+                    st.error("The passwords do not match.")
+                else:
+                    created, message = create_user(
+                        register_email.strip(), register_password, register_name.strip()
+                    )
+                    if created:
+                        user = authenticate_user(
+                            register_email.strip(), register_password
+                        )
+                        if user:
+                            st.session_state["user"] = user
+                            st.session_state["current_page"] = "Home"
+                            st.success("Account created. You are now signed in.")
+                            st.rerun()
+                        else:
+                            st.success(message)
+                    else:
+                        st.error(message)
+
+    st.caption(
+        "Your account stores profile details and analysis summaries. "
+        "Avoid uploading sensitive personal information you do not need to analyze."
+    )
+    st.stop()
+
 
 # --------------------------------------------------
 # Sidebar Navigation
@@ -119,6 +254,27 @@ with st.sidebar:
         st.session_state["current_page"] = "About"
 
     st.divider()
+    st.markdown("### Your account")
+    signed_in_user = st.session_state.get("user") or {}
+    st.caption(signed_in_user.get("full_name") or signed_in_user.get("email", "Signed in"))
+
+    if st.button("👤 My Profile", use_container_width=True):
+        st.session_state["current_page"] = "My Profile"
+
+    if st.button("🕘 Analysis History", use_container_width=True):
+        st.session_state["current_page"] = "Analysis History"
+
+    if st.button("🧾 ATS Checker", use_container_width=True):
+        st.session_state["current_page"] = "ATS Checker"
+
+    if st.button("🚪 Sign out", use_container_width=True):
+        st.session_state["user"] = None
+        st.session_state.pop("hirematch_result", None)
+        st.session_state.pop("hirematch_ats_result", None)
+        st.session_state["current_page"] = "Home"
+        st.rerun()
+
+    st.divider()
     st.caption("HireMatch • Career development assistant")
 
 if "current_page" not in st.session_state:
@@ -131,6 +287,205 @@ if "current_page" not in st.session_state:
 # --------------------------------------------------
 
 current_page = st.session_state["current_page"]
+
+
+# --------------------------------------------------
+# MY PROFILE PAGE
+# --------------------------------------------------
+
+if current_page == "My Profile":
+    st.markdown("## 👤 My Profile")
+    st.caption("Keep your career details together in one place.")
+
+    current_user = st.session_state.get("user") or {}
+    user_id = current_user.get("id", current_user.get("user_id"))
+    profile = get_profile(user_id) if user_id is not None else None
+    profile = profile or current_user
+
+    with st.form("profile_form"):
+        full_name = st.text_input(
+            "Full name", value=profile.get("full_name", "") or ""
+        )
+        headline = st.text_input(
+            "Professional headline",
+            value=profile.get("headline", "") or "",
+            placeholder="e.g. B.Tech student | Aspiring ML Engineer",
+        )
+        education = st.text_input(
+            "Education", value=profile.get("education", "") or "",
+            placeholder="e.g. B.Tech in Computer Science",
+        )
+        target_role = st.text_input(
+            "Target role", value=profile.get("target_role", "") or "",
+            placeholder="e.g. Machine Learning Intern",
+        )
+        skills = st.text_input(
+            "Skills (comma-separated)",
+            value=profile.get("skills", "") or "",
+            placeholder="Python, SQL, machine learning",
+        )
+        experience_level = st.selectbox(
+            "Experience level",
+            ["Student", "Entry level", "Internship", "Experienced", "Career switcher"],
+            index=(
+                ["Student", "Entry level", "Internship", "Experienced", "Career switcher"].index(
+                    profile.get("experience_level")
+                )
+                if profile.get("experience_level") in [
+                    "Student", "Entry level", "Internship", "Experienced", "Career switcher"
+                ] else 0
+            ),
+        )
+        bio = st.text_area(
+            "About you",
+            value=profile.get("bio", "") or "",
+            placeholder="Briefly describe your interests, projects, and career goals.",
+        )
+        profile_submitted = st.form_submit_button(
+            "Save profile", type="primary", use_container_width=True
+        )
+
+    if profile_submitted:
+        if user_id is None:
+            st.error("Could not identify your account. Please sign in again.")
+        else:
+            update_profile(
+                user_id, full_name.strip(), headline.strip(), education.strip(),
+                target_role.strip(), skills.strip(), experience_level, bio.strip()
+            )
+            refreshed = get_profile(user_id)
+            if refreshed:
+                st.session_state["user"] = refreshed
+            st.success("Your profile has been saved.")
+
+    st.info("Only enter professional details you are comfortable storing in this app.")
+    st.stop()
+
+
+# --------------------------------------------------
+# ANALYSIS HISTORY PAGE
+# --------------------------------------------------
+
+elif current_page == "Analysis History":
+    st.markdown("## 🕘 Analysis History")
+    st.caption("Your latest saved analysis summaries.")
+
+    current_user = st.session_state.get("user") or {}
+    user_id = current_user.get("id", current_user.get("user_id"))
+    history = get_history(user_id, limit=30) if user_id is not None else []
+
+    if not history:
+        st.info("No saved analyses yet. Run an analysis from Home to see it here.")
+    else:
+        for item in history:
+            with st.container(border=True):
+                st.markdown(
+                    f"**{item.get('job_title') or 'Target role'}**"
+                )
+                date_value = item.get("created_at", "")
+                st.caption(f"Saved: {date_value}")
+                col1, col2 = st.columns(2)
+                semantic_score = item.get("semantic_score")
+                ats_score = item.get("ats_score")
+                col1.metric(
+                    "Semantic match",
+                    f"{float(semantic_score):.1f}%"
+                    if semantic_score is not None else "Unavailable",
+                )
+                col2.metric(
+                    "ATS readiness",
+                    f"{float(ats_score):.0f}/100"
+                    if ats_score is not None else "Unavailable",
+                )
+                st.write("Matched skills:", item.get("matched_skills") or "None recorded")
+                st.write("Skills to develop:", item.get("missing_skills") or "None recorded")
+
+    st.caption("The history stores summary data, not the original resume text.")
+    st.stop()
+
+
+# --------------------------------------------------
+# ATS CHECKER PAGE
+# --------------------------------------------------
+
+elif current_page == "ATS Checker":
+    st.markdown("## 🧾 ATS Resume Checker")
+    st.caption("Run a basic formatting and content checklist on resume text.")
+
+    ats_resume_text = st.text_area(
+        "Paste resume text",
+        height=280,
+        key="ats_resume_input",
+        placeholder="Paste selectable text from your resume here...",
+    )
+
+    if st.button("Check ATS readiness", type="primary", use_container_width=True):
+        if not ats_resume_text.strip():
+            st.warning("Paste resume text before running the checker.")
+        else:
+            st.session_state["standalone_ats_result"] = analyze_ats(ats_resume_text)
+
+    standalone_result = st.session_state.get("standalone_ats_result")
+    if standalone_result:
+        ats_score = standalone_result.get("score", standalone_result.get("ats_score"))
+        checks = standalone_result.get("checks", [])
+        if ats_score is not None:
+            score_value = float(ats_score)
+            score_col, status_col, checks_col = st.columns([1, 1.4, 1])
+            with score_col:
+                st.metric("ATS readiness", f"{score_value:.0f}/100")
+                st.progress(max(0.0, min(1.0, score_value / 100)))
+            with status_col:
+                if score_value >= 80:
+                    st.success("Strong checklist coverage")
+                    st.caption("Keep tailoring your resume to each role.")
+                elif score_value >= 60:
+                    st.info("Good start — some improvements needed")
+                    st.caption("Prioritize the failed high-value checks.")
+                else:
+                    st.warning("Needs improvement")
+                    st.caption("Start with contact details and core sections.")
+            with checks_col:
+                st.metric("Checks passed", f"{standalone_result.get('passed_count', 0)} / {standalone_result.get('total_checks', len(checks))}")
+                st.caption("Points are weighted by checklist importance.")
+
+        st.markdown("#### Checklist breakdown")
+        if checks:
+            import pandas as pd
+            table_rows = [{
+                "Check": item.get("label", "Resume check"),
+                "Result": "Pass" if item.get("passed") else "Needs attention",
+                "Weight": f"{item.get('points', 0)} pts",
+                "Recommendation / evidence": item.get("feedback", ""),
+            } for item in checks]
+            st.dataframe(
+                pd.DataFrame(table_rows),
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Check": st.column_config.TextColumn("Check", width="medium"),
+                    "Result": st.column_config.TextColumn("Result", width="small"),
+                    "Weight": st.column_config.TextColumn("Weight", width="small"),
+                    "Recommendation / evidence": st.column_config.TextColumn("Recommendation / evidence", width="large"),
+                },
+            )
+            with st.expander("Show only items to improve"):
+                failed = [item for item in checks if not item.get("passed")]
+                if failed:
+                    for item in failed:
+                        st.markdown(f"**{item.get('label')}** · {item.get('points', 0)} weighted points")
+                        st.write(item.get("feedback", ""))
+                else:
+                    st.success("All checks in this checklist passed.")
+
+        st.caption(
+            standalone_result.get(
+                "disclaimer",
+                "This is a basic heuristic checklist, not a guarantee that an ATS will accept or rank a resume."
+            )
+        )
+
+    st.stop()
 
 
 # --------------------------------------------------
@@ -598,6 +953,30 @@ if analyze_clicked:
 
                 st.session_state["hirematch_result"] = result
 
+                if result.get("success", False):
+                    ats_result = analyze_ats(resume_text)
+                    st.session_state["hirematch_ats_result"] = ats_result
+
+                    current_user = st.session_state.get("user") or {}
+                    user_id = current_user.get("id", current_user.get("user_id"))
+                    if user_id is not None:
+                        try:
+                            first_line = next(
+                                (line.strip() for line in job_description.splitlines() if line.strip()),
+                                "Target role",
+                            )
+                            save_analysis(
+                                user_id=user_id,
+                                job_title=first_line[:100],
+                                semantic_score=result.get("semantic_similarity"),
+                                ats_score=ats_result.get("score", ats_result.get("ats_score")),
+                                matched_skills=result.get("matched_skills", []),
+                                missing_skills=result.get("missing_skills", []),
+                            )
+                        except Exception:
+                            # Keep the live analysis usable if history saving fails.
+                            pass
+
             except Exception as exc:
                 st.error(
                     "HireMatch could not complete the analysis. "
@@ -619,43 +998,93 @@ if "hirematch_result" in st.session_state:
         st.warning(result.get("message", "Analysis could not be completed."))
 
     else:
-        # Match score
-        score = result.get("match_percentage", 0)
+        
+        # Semantic match score
+        score = result.get("semantic_similarity")
 
         st.markdown("### Your job compatibility")
 
         score_col, summary_col = st.columns([1, 2], gap="large")
 
         with score_col:
-            st.metric(
-                label="Skill Match",
-                value=f"{score}%",
-            )
-            st.progress(score / 100)
+            if score is not None:
+                score = float(score)
+
+                st.metric(
+                    label="Semantic Match",
+                    value=f"{score:.1f}%",
+                )
+                st.progress(max(0.0, min(1.0, score / 100)))
+            else:
+                st.metric(
+                    label="Semantic Match",
+                    value="Unavailable",
+                )
 
         with summary_col:
             st.markdown("#### What your score means")
 
-            if score >= 80:
+            if score is None:
+                st.warning(
+                    "Semantic matching is currently unavailable. "
+                    "Please try again after checking the model and connection."
+                )
+            elif score >= 80:
                 st.success(
-                    "Strong skill alignment! Review the remaining gaps "
-                    "and prepare examples from your projects."
+                    "The model found strong textual similarity. Review "
+                    "the skill gaps and verify the details yourself."
                 )
             elif score >= 50:
                 st.info(
-                    "You have a useful foundation. Focus on the missing "
-                    "skills most relevant to this role."
+                    "The model found some textual similarity. Focus on "
+                    "the relevant missing skills and experience."
                 )
             else:
                 st.warning(
-                    "There are several skill gaps to explore. Use the "
-                    "roadmap below to plan your next learning steps."
+                    "The model found lower textual similarity. Check "
+                    "whether your resume describes relevant experience "
+                    "and projects clearly."
                 )
 
             st.caption(
-                "This score compares detected skills only. It does not "
-                "measure your full qualifications or guarantee hiring."
+                "Semantic similarity measures textual similarity. It is "
+                "not a hiring probability or a guarantee of suitability."
             )
+
+        st.divider()
+
+        # ATS readiness checklist
+        ats_result = st.session_state.get("hirematch_ats_result")
+        if ats_result:
+            st.markdown("### 🧾 ATS resume readiness")
+            ats_score = ats_result.get("score", ats_result.get("ats_score"))
+            if ats_score is not None:
+                ats_col, ats_summary_col = st.columns([1, 2], gap="large")
+                with ats_col:
+                    st.metric("ATS checklist score", f"{float(ats_score):.0f}/100")
+                    st.progress(max(0.0, min(1.0, float(ats_score) / 100)))
+                with ats_summary_col:
+                    st.write(
+                        f"{ats_result.get('passed_count', 0)} of "
+                        f"{ats_result.get('total_checks', len(ats_result.get('checks', [])))} "
+                        "basic resume checks passed."
+                    )
+                    st.caption(
+                        ats_result.get(
+                            "disclaimer",
+                            "This heuristic checklist is not a guarantee of ATS compatibility or hiring success."
+                        )
+                    )
+
+            with st.expander("Review ATS checklist details"):
+                for check in ats_result.get("checks", []):
+                    label = check.get("label", "Resume check")
+                    feedback = check.get("feedback", "")
+                    points = check.get("points", 0)
+                    if check.get("passed"):
+                        st.success(f"✓ {label} (+{points} points) — {feedback}")
+                    else:
+                        st.warning(f"• {label} — {feedback}")
 
         st.divider()
 
@@ -803,6 +1232,7 @@ if "hirematch_result" in st.session_state:
         # Reset results and start a fresh analysis
         if st.button("🔄 Start a New Analysis"):
             st.session_state.pop("hirematch_result", None)
+            st.session_state.pop("hirematch_ats_result", None)
             st.rerun()
 
 
