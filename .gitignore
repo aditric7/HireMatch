@@ -23,3 +23,6 @@ Thumbs.db
 hirematch.db
 hirematch.db-shm
 hirematch.db-wal
+auth.db
+*.db-shm
+*.db-wal
